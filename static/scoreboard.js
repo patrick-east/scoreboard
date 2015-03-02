@@ -65,7 +65,6 @@ var Scoreboard = (function () {
             success: function(data) {
                 ci_results = JSON.parse(data);
                 build_table();
-                hide_overlay();
             }
         });
     };
@@ -140,6 +139,60 @@ var Scoreboard = (function () {
         cell.html(result);
     };
 
+    var handle_result = function(result) {
+        var result_row = null;
+        var ci_index = null;
+        // console.log(JSON.stringify(result));
+        var review_id_patchset = review_patchset_header(result.review_id, result.review_patchset);
+
+        // see if we alredy have entries for this result
+        result_row_element = row_cache[review_id_patchset];
+        if (result_row_element) {
+            result_row = $(result_row_element);
+        }
+        if (result_row) {
+
+            // see if there is already a column for the ci account name
+            // if not add one in and expand the table
+            ci_index = add_ci_column_if_needed(result.user_name, result.user_name_pretty);
+        }
+        else {
+            // add a new row for the review number + patchset
+            result_row = $(document.createElement('tr'));
+            result_row.appendTo(table);
+            var label = create_header();
+            label.html(review_id_patchset);
+            label.appendTo(result_row);
+            row_cache[review_id_patchset] = result_row.get();
+
+            // fill in the new row with cells for existing columns, fill in
+            // the one we know about that is for this result
+            for (var j = 0; j < ci_accounts.length; j++) {
+                create_filler().appendTo(result_row);
+            }
+
+            // see if there is already a column for the ci account name
+            // if not add one in and expand the table
+            ci_index = add_ci_column_if_needed(result.user_name, result.user_name_pretty);
+        }
+
+        // find the cell for this ci account and fill in the result
+        // we'll make the cell have an onclick for the url and show
+        // the url in a tooltip
+        var td = result_row.children().eq(ci_index + 1);  // offset 1 for the first column
+        var url = "https://review.openstack.org/#/c/" + result.review_id + "/" + result.review_patchset;
+        td.on('click', (function () {
+            // closures are weird.. scope the url so each on click is using
+            // the right one and not just the last url handled by the loop
+            var review_url = url;
+            return function () {
+                window.open(review_url, '_blank');
+            }
+        })());
+        td.prop('title', url);
+        set_result(td, result.result);
+    }
+
     var build_table = function () {
         table = $(document.createElement('table'));
         table.addClass('pretty_table');
@@ -148,77 +201,41 @@ var Scoreboard = (function () {
         table_container.addClass('scoreboard_container');
         table.appendTo(table_container);
 
-        var test_results = {}
-
-        // build a table header that will have row for each ci
+        // build a table header that will (by the time
+        // we're done) have row for each ci account name
         table_header = $(document.createElement('tr'));
         create_header().appendTo(table_header); // spacer box
         table_header.appendTo(table);
 
-        // TODO: maybe process some of this in a worker thread or
-        // split it up into handle a single result, return, and
-        // start another result so that we don't hog the main thread
-        // and prevent the page from blocking while we are chewing on
-        // all of this stuff.
+        // TODO: maybe process some of this in a worker thread?
         // It might be nice if we can build a model and then render it
-        // all in one go instead of modifying the DOM so much.. maybe
-        // a model that is updated by workers and batch table updates
-        // so later on it could handle incremental updates from the
-        // server instead of loading the whole batch of results at once
-        for (var i = 0; i < ci_results.length; i++) {
-            var result_row = null;
-            var ci_index = null;
-            var result = ci_results[i];
-            // console.log(JSON.stringify(result));
-            var review_id_patchset = review_patchset_header(result.review_id, result.review_patchset);
-
-            // see if we alredy have entries for this result
-            result_row_element = row_cache[review_id_patchset];
-            if (result_row_element) {
-                result_row = $(result_row_element);
+        // all in one go instead of modifying the DOM so much... or at
+        // least do some pre-checks to build out all of the columns
+        // first so we don't have to keep updating them later on
+        //
+        // For now we will handle a single result at a time (later on
+        // we could maybe stream/pull incremental updates so the page
+        // is 'live').
+        //
+        // This will add each result into the table and then yeild
+        // the main thread so the browser can render, handle events,
+        // and generally not lock up and be angry with us. It still
+        // takes a while to actually build out the table, but at least
+        // it will be more exciting to watch all the results pop up
+        // on the screen instead of just blank page.
+        var index = 0;
+        var num_results = ci_results.length;
+        function handle_result_wrapper() {
+            if (index < num_results) {
+                handle_result(ci_results[index]);
+                index++;
+                window.setTimeout(handle_result_wrapper, 0);
+            } else {
+                hide_overlay();
             }
-            if (result_row) {
-
-                // see if there is already a column for the ci account name
-                // if not add one in and expand the table
-                ci_index = add_ci_column_if_needed(result.user_name, result.user_name_pretty);
-            }
-            else {
-                // add a new row for the review number + patchset
-                result_row = $(document.createElement('tr'));
-                result_row.appendTo(table);
-                var label = create_header();
-                label.html(review_id_patchset);
-                label.appendTo(result_row);
-                row_cache[review_id_patchset] = result_row.get();
-
-                // fill in the new row with cells for existing columns, fill in
-                // the one we know about that is for this result
-                for (var j = 0; j < ci_accounts.length; j++) {
-                    create_filler().appendTo(result_row);
-                }
-
-                // see if there is already a column for the ci account name
-                // if not add one in and expand the table
-                ci_index = add_ci_column_if_needed(result.user_name, result.user_name_pretty);
-            }
-
-            // find the cell for this ci account and fill in the result
-            // we'll make the cell have an onclick for the url and show
-            // the url in a tooltip
-            var td = result_row.children().eq(ci_index + 1);  // offset 1 for the first column
-            var url = "https://review.openstack.org/#/c/" + result.review_id + "/" + result.review_patchset;
-            td.on('click', (function () {
-                // closures are weird.. scope the url so each on click is using
-                // the right one and not just the last url handled by the loop
-                var review_url = url;
-                return function () {
-                    window.open(review_url, '_blank');
-                }
-            })());
-            td.prop('title', url);
-            set_result(td, result.result);
         }
+        handle_result_wrapper();
+
     };
 
     var add_input_to_form = function (form, label_text, input_name, starting_val) {
