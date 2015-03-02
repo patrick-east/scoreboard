@@ -86,6 +86,7 @@ var Scoreboard = (function () {
     var create_filler = function () {
         td = $(document.createElement('td'));
         td.addClass('no_result');
+        td.html('&nbsp');
         return td;
     };
 
