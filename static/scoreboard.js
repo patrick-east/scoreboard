@@ -9,6 +9,7 @@ var Scoreboard = (function () {
 
     var ci_results = null;
     var ci_accounts = [];
+    var row_cache = {};
 
     var spinner = null;
     var overlay = null;
@@ -139,24 +140,6 @@ var Scoreboard = (function () {
         cell.html(result);
     };
 
-    // find a tr element in our table that has a first column td
-    // that matches the key passed in
-    // TODO: oh god, its so slow it burns... keep a cache with fast
-    // indexing so we don't have to search all rows every single time
-    var find_row = function(key) {
-        var rows = table.children('tbody').children('tr');
-        target_row = null;
-        rows.each(function() {
-            var self = $(this);
-            var matching_td = $('td:first-child').each(function () {
-                if ($(this).text() === key) {
-                    target_row = $(this).closest('tr');
-                }
-            });
-        });
-        return target_row;
-    }
-
     var build_table = function () {
         table = $(document.createElement('table'));
         table.addClass('pretty_table');
@@ -190,20 +173,24 @@ var Scoreboard = (function () {
             var review_id_patchset = review_patchset_header(result.review_id, result.review_patchset);
 
             // see if we alredy have entries for this result
-            result_row = find_row(review_id_patchset);
+            result_row_element = row_cache[review_id_patchset];
+            if (result_row_element) {
+                result_row = $(result_row_element);
+            }
             if (result_row) {
 
                 // see if there is already a column for the ci account name
                 // if not add one in and expand the table
                 ci_index = add_ci_column_if_needed(result.user_name, result.user_name_pretty);
-
-            } else {
+            }
+            else {
                 // add a new row for the review number + patchset
                 result_row = $(document.createElement('tr'));
                 result_row.appendTo(table);
                 var label = create_header();
                 label.html(review_id_patchset);
                 label.appendTo(result_row);
+                row_cache[review_id_patchset] = result_row.get();
 
                 // fill in the new row with cells for existing columns, fill in
                 // the one we know about that is for this result
