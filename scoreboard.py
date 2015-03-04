@@ -2,6 +2,7 @@
 
 import datetime
 import json
+import logging
 import re
 import threading
 
@@ -30,6 +31,9 @@ migrate = Migrate(app, db)
 manager = Manager(app)
 manager.add_command('db', MigrateCommand)
 manager.add_command('runserver', Server(host='0.0.0.0'))
+
+log_file = cfg.log_file() or 'scoreboard.log'
+logging.basicConfig(filename=log_file, level=logging.INFO)
 
 thirdparty_ci_usernames = []
 

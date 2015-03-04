@@ -39,3 +39,6 @@ class Config:
 
     def db_uri(self):
         return self._value('DB_URI')
+
+    def log_file(self):
+        return self._value('LOG_FILE_LOCATION')
