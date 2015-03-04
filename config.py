@@ -1,7 +1,7 @@
 
 import ConfigParser
 
-CONFIG_FILE = '/home/patrick/projects/krampus/ci-scoreboard.conf'
+CONFIG_FILE = '/etc/ci-scoreboard/ci-scoreboard.conf'
 CONFIG_SECTION = 'scoreboard'
 
 
