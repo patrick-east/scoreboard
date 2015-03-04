@@ -1,6 +1,5 @@
 # Copyright 2011 OpenStack, LLC.
 # Copyright 2012 Hewlett-Packard Development Company, L.P.
-# Copyright 2015 Pure Storage, Inc
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -23,15 +22,9 @@ import paramiko
 import logging
 import pprint
 
-# This file came from https://git.openstack.org/cgit/openstack-infra/zuul/tree/
-# and was modified to work without the logging setup
-
 
 class GerritWatcher(threading.Thread):
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
     log = logging.getLogger("gerrit.GerritWatcher")
-    log.addHandler(ch)
 
     def __init__(self, gerrit, username, hostname, port=29418, keyfile=None):
         threading.Thread.__init__(self)
@@ -89,10 +82,7 @@ class GerritWatcher(threading.Thread):
 
 
 class Gerrit(object):
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
     log = logging.getLogger("gerrit.Gerrit")
-    log.addHandler(ch)
 
     def __init__(self, hostname, username, port=29418, keyfile=None):
         self.username = username
