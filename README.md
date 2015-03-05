@@ -1,8 +1,12 @@
 Very simple 3rd party CI dashboard tool
 =======================================
+It is two python scripts, one is a Flask app that serves up the UI and handles
+REST calls. The other one monitors gerrit and records ci results in the database.
+
+
 Requires:
 
-* sqlite
+* mongodb
 * python-dev
 * python-pip
 * virtualenv
@@ -10,7 +14,7 @@ Requires:
 
 Setup the config files.. alter the path in config.py to match the location
 of ci-scoreboard.conf. And update the ci-scoreboard.conf to have the right
-values for your gerrit account and keyfile.
+values for your gerrit account, keyfile, and mongodb server.
 
 To run the server first init things with:
 
@@ -19,13 +23,9 @@ To run the server first init things with:
 Then source the virtual environment:
 
    `source ./.venv/bin/activate`
-  
-Setup the database with:
-
-  `./scoreboard.py db init`
-  `./scoreboard.py db upgrade`
 
 And run the app with:
 
-  `./scoreboard.py runserver`
+  `./scoreboard_ui.py runserver`
+  `./scoreboard_gerrit_listener.py`
 
