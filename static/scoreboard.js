@@ -8,7 +8,7 @@ var Scoreboard = (function () {
     var hostname = null;
 
     var ci_results = null;
-    var ci_accounts = [];
+    var ci_accounts = null;
     var row_cache = {};
 
     var spinner = null;
@@ -60,21 +60,50 @@ var Scoreboard = (function () {
         show_overlay();
         $.ajax({
             type: 'get',
-            url: 'query',
+            url: 'results',
             data: window.location.search.substring(1),
             success: function(data) {
                 ci_results = JSON.parse(data);
-                build_table();
+                get_ci_accounts()
             }
         });
     };
 
+    var get_ci_accounts = function () {
+        $.ajax({
+            type: 'get',
+            url: 'ci-accounts',
+            success: function(data) {
+                parse_accounts(data);
+                build_table();
+            }
+        });
+    }
+
+    var find_ci_in_list = function (ci, list) {
+        for (var i = 0; i < list.length; i++) {
+            if (ci == list[i]._id) {
+                return list[i];
+            }
+        }
+    }
+
+    var parse_accounts = function (ci_accounts_raw) {
+        var all_ci_accounts = JSON.parse(ci_accounts_raw);
+        var ci_account_objs = {};
+        ci_accounts = [];
+        for (var patchset in ci_results) {
+            for (var ci in ci_results[patchset].results) {
+                if (!(ci in ci_account_objs)) {
+                    ci_account_objs[ci] = true;
+                    ci_accounts.push(find_ci_in_list(ci, all_ci_accounts));
+                }
+            }
+        }
+    }
+
     var ci_account_header = function (user_name, user_name_pretty) {
         return user_name_pretty + ' <br /> (' + user_name + ')';
-    };
-
-    var review_patchset_header = function (review_id, review_patchset) {
-        return review_id + ',' + review_patchset;
     };
 
     var create_header = function () {
@@ -90,29 +119,10 @@ var Scoreboard = (function () {
         return td;
     };
 
-    var add_column = function (header_title) {
+    var add_header = function (header_title) {
         var td = create_header();
         td.html(header_title);
         td.appendTo(table_header);
-
-        // fill in all other rows (except the header)
-        // that wont have entries for this column
-        var all_rows = table.children('tbody').children('tr:not(:first-child)');
-        all_rows.each(function () {
-            create_filler().appendTo($(this));
-        });
-
-    };
-
-    var add_ci_column_if_needed = function (user_name, user_name_pretty) {
-        var ci_accounts_index = ci_accounts.indexOf(user_name)
-        if (ci_accounts_index == -1) {
-            ci_accounts.push(user_name);
-            ci_accounts_index = ci_accounts.length - 1;
-            var column_header = ci_account_header(user_name, user_name_pretty);
-            add_column(column_header)
-        }
-        return ci_accounts_index;
     };
 
     var set_result = function(cell, result) {
@@ -139,64 +149,49 @@ var Scoreboard = (function () {
         cell.html(result);
     };
 
-    var handle_result = function(result) {
+    var handle_patchset = function(patchset) {
         var result_row = null;
         var ci_index = null;
         // console.log(JSON.stringify(result));
-        var review_id_patchset = review_patchset_header(result.review_id, result.review_patchset);
+        var review_id_patchset = patchset._id;
 
-        // see if we alredy have entries for this result
-        result_row_element = row_cache[review_id_patchset];
-        if (result_row_element) {
-            result_row = $(result_row_element);
-        }
-        if (result_row) {
+        // add a new row for the review number + patchset
+        result_row = $(document.createElement('tr'));
+        result_row.appendTo(table);
+        var label = create_header();
+        label.html(review_id_patchset);
+        label.appendTo(result_row);
 
-            // see if there is already a column for the ci account name
-            // if not add one in and expand the table
-            ci_index = add_ci_column_if_needed(result.user_name, result.user_name_pretty);
-        }
-        else {
-            // add a new row for the review number + patchset
-            result_row = $(document.createElement('tr'));
-            result_row.appendTo(table);
-            var label = create_header();
-            label.html(review_id_patchset);
-            label.appendTo(result_row);
-            row_cache[review_id_patchset] = result_row.get();
-
-            // fill in the new row with cells for existing columns, fill in
-            // the one we know about that is for this result
-            for (var j = 0; j < ci_accounts.length; j++) {
-                create_filler().appendTo(result_row);
+        for (var i = 0; i < ci_accounts.length; i++) {
+            var ci_account = ci_accounts[i];
+            var td = null;
+            if (ci_account._id in patchset.results) {
+                var result = patchset.results[ci_account._id];
+                td = $(document.createElement('td'));
+                review_patchset_split = review_id_patchset.split(',');
+                var url = "https://review.openstack.org/#/c/" + review_patchset_split[0] + "/" + review_patchset_split[1];
+                td.on('click', (function () {
+                    // closures are weird.. scope the url so each on click is using
+                    // the right one and not just the last url handled by the loop
+                    var review_url = url;
+                    return function () {
+                        window.open(review_url, '_blank');
+                    }
+                })());
+                td.prop('title', url);
+                set_result(td, result);
             }
-
-            // see if there is already a column for the ci account name
-            // if not add one in and expand the table
-            ci_index = add_ci_column_if_needed(result.user_name, result.user_name_pretty);
-        }
-
-        // find the cell for this ci account and fill in the result
-        // we'll make the cell have an onclick for the url and show
-        // the url in a tooltip
-        var td = result_row.children().eq(ci_index + 1);  // offset 1 for the first column
-        var url = "https://review.openstack.org/#/c/" + result.review_id + "/" + result.review_patchset;
-        td.on('click', (function () {
-            // closures are weird.. scope the url so each on click is using
-            // the right one and not just the last url handled by the loop
-            var review_url = url;
-            return function () {
-                window.open(review_url, '_blank');
+            else {
+                td = create_filler();
             }
-        })());
-        td.prop('title', url);
-        set_result(td, result.result);
+            td.appendTo(result_row);
+        }
     }
 
     var build_table = function () {
         table = $(document.createElement('table'));
         table.addClass('pretty_table');
-        table.attr("cellspacing", 0);
+        table.attr('cellspacing', 0);
         table_container = $('#' + table_div_id);
         table_container.addClass('scoreboard_container');
         table.appendTo(table_container);
@@ -206,6 +201,11 @@ var Scoreboard = (function () {
         table_header = $(document.createElement('tr'));
         create_header().appendTo(table_header); // spacer box
         table_header.appendTo(table);
+
+        for (var i = 0; i < ci_accounts.length; i++) {
+            var ci = ci_accounts[i]
+            add_header(ci_account_header(ci._id, ci.user_name_pretty));
+        }
 
         // TODO: maybe process some of this in a worker thread?
         // It might be nice if we can build a model and then render it
@@ -217,7 +217,7 @@ var Scoreboard = (function () {
         // we could maybe stream/pull incremental updates so the page
         // is 'live').
         //
-        // This will add each result into the table and then yeild
+        // This will add each result into the table and then yield
         // the main thread so the browser can render, handle events,
         // and generally not lock up and be angry with us. It still
         // takes a while to actually build out the table, but at least
@@ -225,17 +225,15 @@ var Scoreboard = (function () {
         // on the screen instead of just blank page.
         var index = 0;
         var num_results = ci_results.length;
-        function handle_result_wrapper() {
+        (function handle_patchset_wrapper() {
             if (index < num_results) {
-                handle_result(ci_results[index]);
+                handle_patchset(ci_results[index]);
                 index++;
-                window.setTimeout(handle_result_wrapper, 0);
+                window.setTimeout(handle_patchset_wrapper, 0);
             } else {
                 hide_overlay();
             }
-        }
-        handle_result_wrapper();
-
+        })();
     };
 
     var add_input_to_form = function (form, label_text, input_name, starting_val) {
