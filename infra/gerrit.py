@@ -1,5 +1,6 @@
 # Copyright 2011 OpenStack, LLC.
 # Copyright 2012 Hewlett-Packard Development Company, L.P.
+# Copyright 2015 Pure Storage, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -14,7 +15,6 @@
 # under the License.
 
 import threading
-import select
 import json
 import time
 from six.moves import queue as Queue
@@ -38,20 +38,12 @@ class GerritWatcher(threading.Thread):
         l = fd.readline()
         data = json.loads(l)
         self.log.debug("Received data from Gerrit event stream: \n%s" %
-                       pprint.pformat(data))
+                       str(data))
         self.gerrit.addEvent(data)
 
     def _listen(self, stdout, stderr):
-        poll = select.poll()
-        poll.register(stdout.channel)
         while True:
-            ret = poll.poll()
-            for (fd, event) in ret:
-                if fd == stdout.channel.fileno():
-                    if event == select.POLLIN:
-                        self._read(stdout)
-                    else:
-                        raise Exception("event on ssh connection")
+            self._read(stdout)
 
     def _run(self):
         try:
