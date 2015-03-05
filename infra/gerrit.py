@@ -93,6 +93,7 @@ class Gerrit(object):
             self.hostname,
             self.port,
             keyfile=self.keyfile)
+        self.watcher_thread.daemon = True
         self.watcher_thread.start()
 
     def addEvent(self, data):
