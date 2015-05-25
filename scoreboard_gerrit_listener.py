@@ -2,7 +2,7 @@
 
 import datetime
 import re
-import threading
+import time
 
 import config
 import db_helper
@@ -98,8 +98,6 @@ class GerritCIListener():
                 self.db.test_results.insert(patchset)
 
     def run(self):
-        # TODO: Maybe split this into its own process? Its kind of annoying that
-        # when modifying the UI portion of the project it stops gathering data..
         hostname = self.cfg.gerrit_hostname()
         username = self.cfg.gerrit_user()
         port = self.cfg.gerrit_port()
@@ -117,6 +115,7 @@ class GerritCIListener():
             except:
                 self.log.exception('Failed to handle gerrit event: ')
             g.eventDone()
+            time.sleep(1)
 
 
 if __name__ == '__main__':
